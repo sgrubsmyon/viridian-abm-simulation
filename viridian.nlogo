@@ -19,7 +19,7 @@ globals [
   lifespan-variances   ; for each product class: variance of average lifespan
   lifespan-vs-sust     ; for each product class: function mapping [0..10] (sustainability) onto [0..1] (0 means min-lifespan, 1 means max-lifespan)
   cost-vs-sust         ; for each product class: function mapping [0..10] (sustainability) onto [0..1] (0 means min-cost, 1 means max-cost)
-  cost-vs-prest        ; for each product class: function mapping [0..10] (prestige) onto [0..1] (0 means min-cost, 1 means max-cost)
+  price-vs-prest        ; for each product class: function mapping [0..10] (prestige) onto [0..1] (0 means min-cost, 1 means max-cost)
 
   prestige-weights     ; for each product class: how are products weighted with respect to each other?
 
@@ -134,7 +134,7 @@ to setup-globals
     [ x -> x / 10 ] ; IT
     [ x -> x / 10 ] ; others
   )
-  set cost-vs-prest (list
+  set price-vs-prest (list
     [ x -> x / 10 ] ; food
     [ x -> x / 10 ] ; textiles
     [ x -> x / 10 ] ; mobility-car
@@ -331,11 +331,25 @@ to setup-producer
 
   let min-cost item 0 item i min-max-costs
   let max-cost item 1 item i min-max-costs
-  let cost-f-s (item i cost-vs-sust)
-  let cost-f-p (item i cost-vs-prest)
-  let sust-value (runresult cost-f-s sustainability)
-  let prest-value (runresult cost-f-p prestige)
-  set cost (max-cost - min-cost) * (mean list sust-value prest-value) + min-cost
+  let cost-f (item i cost-vs-sust)
+  let price-f (item i price-vs-prest)
+  let sust-factor (runresult cost-f sustainability)
+  let prest-factor (runresult price-f prestige)
+  ifelse (sust-factor > prest-factor) [
+    ; the product shall not have a price lower than cost, so include low prest-factor
+    ; in the production cost
+    set cost (max-cost - min-cost) * (mean list sust-factor prest-factor) + min-cost
+    set price cost
+  ]
+  [
+    ; the product's production cost is only determined by sust-factor (low cost),
+    ; but the high prestige comes at a higher price for consumer
+    set cost (max-cost - min-cost) * sust-factor + min-cost
+    let min-price cost
+    let max-price (max-cost - min-cost) * (mean list sust-factor prest-factor) + min-cost
+    ; choose a random price between production cost and prestige boosted cost
+    set price (max-price - min-price) * random-float 1 + min-price
+  ]
 end
 
 to go
