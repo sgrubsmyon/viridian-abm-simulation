@@ -7,7 +7,7 @@ globals [
   n-producers          ; how many producers to simulate?
   n-consumers          ; how many consumers to simulate?
 
-  start-capital-pro    ; starting capital for producers
+  start-capital-factor ; starting capital for producers (factor to be multiplied with production cost of product)
   start-capital-con    ; starting capital for consumers
 
   milieus              ; list of consumer milieus
@@ -40,6 +40,7 @@ globals [
 producers-own [
   capital              ; the current amount of money owned by the producer
   product-class        ; what class is the produced product in?
+  product-class-index  ; what is the index of that product class? (useful for lookup in lists)
   sustainability       ; how sustainable is the produced product?
   lifespan             ; determined by product-class and sustainability: how many ticks until the produced product is on average broken (since it's been bought)?
   lifespan-variance    ; determined by product-class and sustainability: how much can actual lifespan deviate from average lifespan?
@@ -114,7 +115,7 @@ end
 to setup-globals
   set n-producers 100
   set n-consumers 100
-  set start-capital-pro 20000
+  set start-capital-factor 10
   set start-capital-con 2000
   set product-classes [
     "food"
@@ -348,6 +349,20 @@ to-report demands
   report result
 end
 
+to-report cumulative-demand [pc-index] ; index of the product class
+  let pc item pc-index product-classes
+  let ids sort [who] of consumers ; because order of 'of' is random, use the sorted whos for defined order
+  let cs cumsum map [ x ->
+    [
+      item (
+        count out-ownership-neighbors with [product-class = pc]
+      ) item pc-index consumption-need
+    ] of consumer x
+  ] ids
+  set cs map [ x -> x / demand pc-index ] cs
+  report lput 1 but-last cs
+end
+
 ; producers look at consumers' wishes, so must be created after consumers
 to setup-producers
   create-producers n-producers [
@@ -359,18 +374,29 @@ to setup-producer
   setxy random-xcor random-ycor
   hide-turtle
 
-  set capital start-capital-pro
-
-  ; select a random product class, with probability corresponding to demand
+  ; select a random product class, with probability corresponding to demand (the product-class never changes across lifetime of producer)
   ; first calculate cumulative probabilities from the demands
   let demands-sum sum demands
   let demands-cumsum map [ x -> x / demands-sum ] cumsum demands
   ; draw a random number n between 0 and 1, the product class index is the index of the first cumsum entry larger than that number
   let n random-float 1
-  let i index-of true map [ x -> n < x ] demands-cumsum
-  set product-class item i product-classes
+  set product-class-index index-of true map [ x -> n < x ] demands-cumsum
+  set product-class item product-class-index product-classes
 
-  set sustainability one-of [sustainability-need] of consumers
+  orient-producer
+
+  set capital start-capital-factor * cost
+end
+
+; the producer decides (maybe redecides) about sustainability and prestige of her product
+to orient-producer
+  let i product-class-index
+
+  ; determine a randomly selected customer on which to orient the production (sustainability and prestige)
+  let n random-float 1
+  let target index-of true map [ x -> n < x ] cumulative-demand i
+
+  set sustainability [sustainability-need] of consumer target
 
   let min-lifespan item 0 item i min-max-lifespans
   let max-lifespan item 1 item i min-max-lifespans
@@ -380,10 +406,7 @@ to setup-producer
 ;  set lifespan random-float (max-lifespan - min-lifespan) + min-lifespan
   set lifespan-variance item i lifespan-variances
 
-  set prestige one-of [prestige-need] of consumers with [
-    (sustainability-need > ([sustainability] of myself) - 1) and
-    (sustainability-need < ([sustainability] of myself) + 1)
-  ]
+  set prestige [prestige-need] of consumer target
 
   let min-cost item 0 item i min-max-costs
   let max-cost item 1 item i min-max-costs
@@ -582,10 +605,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"mobility-car\"]"
 
 PLOT
-939
-598
-1139
-748
+1173
+597
+1373
+747
 Sustainability of IT companies
 NIL
 NIL
@@ -600,10 +623,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"IT\"]"
 
 PLOT
-1185
-603
-1385
-753
+1419
+602
+1619
+752
 Sustainability of other companies
 NIL
 NIL
@@ -634,6 +657,24 @@ false
 "; set-plot-x-range 0 max [cost / 100] of producers" ""
 PENS
 "default" 1.0 0 -16777216 true "" "histogram [cost / 100] of producers"
+
+PLOT
+935
+595
+1135
+745
+Sustainability of mobility-alt
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"mobility-alt\"]"
 
 @#$#@#$#@
 ## WHAT IS IT?
