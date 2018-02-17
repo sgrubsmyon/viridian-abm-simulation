@@ -1,6 +1,7 @@
 breed [producers producer]
 breed [consumers consumer]
 breed [products product]
+directed-link-breed [ownerships ownership]
 
 globals [
   n-producers          ; how many producers to simulate?
@@ -281,8 +282,7 @@ to setup-consumers
       foreach consumption-needs [ cn ->
         set consumption-need lput (
           map [ j -> safe-random-normal 0 1 item 0 item j item i cn item 1 item j item i cn ] [0 1 2 3]
-        )
-        consumption-need
+        ) consumption-need
       ]
       set sustainability-need safe-random-normal 0 10 item 0 item i sustainability-needs item 1 item i sustainability-needs
       set similarity-need safe-random-normal 0 10 item 0 item i similarity-needs item 1 item i similarity-needs
@@ -298,6 +298,27 @@ to setup-consumers
   ]
 end
 
+; what is exepctation value for next tick's consumption of a certain product class?
+to-report demand [pc-index] ; index of the product class
+  let pc item pc-index product-classes
+  report sum [
+    item (
+      count out-ownership-neighbors with [product-class = pc]
+    ) item pc-index consumption-need
+  ] of consumers
+end
+
+; report demands of all product classes
+to-report demands
+  let dmds []
+  let pc-index 0
+  while [pc-index < length product-classes] [
+    set dmds lput (demand pc-index) dmds
+    set pc-index pc-index + 1
+  ]
+  report dmds
+end
+
 ; producers look at consumers' wishes, so must be created after consumers
 to setup-producers
   create-producers n-producers [
@@ -311,7 +332,7 @@ to setup-producer
 
   set capital start-capital-pro
 
-  let i one-of n-values (length product-classes) [ x -> x ]
+  let i one-of range (length product-classes)
   set product-class item i product-classes
 
   set sustainability one-of [sustainability-need] of consumers
@@ -531,7 +552,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"mobility\"]"
+"default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"mobility-car\"]"
 
 PLOT
 939
@@ -575,17 +596,17 @@ PLOT
 1510
 567
 Production costs
-Cost
+Cost / 100
 Number of products
 0.0
-10.0
+50.0
 0.0
 10.0
 true
 false
-"" ""
+"; set-plot-x-range 0 max [cost / 100] of producers" ""
 PENS
-"default" 1.0 0 -16777216 true "" "histogram [cost] of producers with [cost < 1000]"
+"default" 1.0 0 -16777216 true "" "histogram [cost / 100] of producers"
 
 @#$#@#$#@
 ## WHAT IS IT?
