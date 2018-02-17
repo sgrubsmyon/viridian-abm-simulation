@@ -65,7 +65,7 @@ consumers-own [
 ]
 
 products-own [
-  class                ; what class does this product belong to?
+  product-class        ; what class does this product belong to?
 ;  quantity             ; how much of the product is currently stored in this product store? store individual products so this is always 1.
 ;  priority             ; how urgent does the consumer this product belongs to need more of it? store this not in the product, but in the consumer.
   lifespan             ; how many ticks until this product is on average broken (since it's been bought)?
@@ -432,7 +432,31 @@ to orient-producer
 end
 
 to go
+  ask producers [produce]
+  ask consumers [consume]
+  ask consumers [be-influenced]
+  ask producers [re-orient]
   tick
+end
+
+; producer method
+to produce
+  hatch-products 3 [
+    set age 0
+    create-ownership-from myself
+  ]
+end
+
+; consumer method
+to consume
+end
+
+; consumer method
+to be-influenced
+end
+
+; producer method
+to re-orient
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
