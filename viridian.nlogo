@@ -74,6 +74,35 @@ products-own [
   prestige             ; how much prestige does the consumer get from owning this product? (how high is the quality?)
 ]
 
+
+
+;;; GENERAL USEFUL FUNCTIONS MISSING IN NETLOGO ;;;
+
+; report index of (first occurrence of) item in list
+to-report index-of [itm lst]
+  let index 0
+  foreach lst [ x ->
+    if x = itm [report index]
+    set index index + 1
+  ]
+  report -1
+end
+
+; create the cumulative sum of a list
+to-report cumsum [lst]
+  let result []
+  let cs 0
+  foreach lst [ x ->
+    let new-val cs + x
+    set result lput new-val result
+    set cs new-val
+  ]
+  report result
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
 to setup
   clear-all
   setup-globals
@@ -310,13 +339,13 @@ end
 
 ; report demands of all product classes
 to-report demands
-  let dmds []
+  let result []
   let pc-index 0
   while [pc-index < length product-classes] [
-    set dmds lput (demand pc-index) dmds
+    set result lput (demand pc-index) result
     set pc-index pc-index + 1
   ]
-  report dmds
+  report result
 end
 
 ; producers look at consumers' wishes, so must be created after consumers
@@ -332,7 +361,13 @@ to setup-producer
 
   set capital start-capital-pro
 
-  let i one-of range (length product-classes)
+  ; select a random product class, with probability corresponding to demand
+  ; first calculate cumulative probabilities from the demands
+  let demands-sum sum demands
+  let demands-cumsum map [ x -> x / demands-sum ] cumsum demands
+  ; draw a random number n between 0 and 1, the product class index is the index of the first cumsum entry larger than that number
+  let n random-float 1
+  let i index-of true map [ x -> n < x ] demands-cumsum
   set product-class item i product-classes
 
   set sustainability one-of [sustainability-need] of consumers
@@ -374,16 +409,8 @@ to setup-producer
 end
 
 to go
-;  move-consumers
   tick
 end
-
-;to move-consumers
-;  ask consumers [
-;    right random 360
-;    forward 1
-;  ]
-;end
 @#$#@#$#@
 GRAPHICS-WINDOW
 221
