@@ -424,9 +424,11 @@ to orient-producer
     ; choose a random price between production cost and prestige boosted cost
     set price (max-price - min-price) * random-float 1 + min-price
   ]
+  set n-products -1
 end
 
 to go
+  ask consumers [use-products]
   ask producers [produce]
   ask consumers [consume]
   ask consumers [be-influenced]
@@ -434,22 +436,37 @@ to go
   tick
 end
 
+; consumer method
+to use-products
+end
+
+; consumer method
+to-report can-buy-at? [prod]
+  report (
+    sustainability-need - sustainability-tol < [sustainability] of prod and
+    sustainability-need + sustainability-tol > [sustainability] of prod and
+    prestige-need - prestige-tol < [prestige] of prod and
+    prestige-need + prestige-tol > [prestige] of prod
+  )
+end
+
 ; producer method
 to produce
-  let target-group consumers with [
-    sustainability-need - sustainability-tol < [sustainability] of myself and
-    sustainability-need + sustainability-tol > [sustainability] of myself and
-    prestige-need - prestige-tol < [prestige] of myself and
-    prestige-need + prestige-tol > [prestige] of myself
+  if n-products < 0 [
+    ; determine n-products anew
+    let target-group consumers with [can-buy-at? myself]
+    let target-demand sum [consumer-demand [product-class-index] of myself] of target-group
+    let competitors producers with [
+      ; can any consumer in the target group also buy at this producer? does it produce the same product class? then it's a competitor
+      product-class-index = [product-class-index] of myself and
+      member? true [can-buy-at? myself] of target-group
+    ]
+    let risk (random 3) + 1
+    set n-products min list (int (target-demand / (count competitors)) * risk) 10
   ]
-  let target-demand sum [consumer-demand [product-class-index] of myself] of target-group
-  let competitors producers with [
-    any? [[sustainability] of myself > sustainability-need - sustainability-tol] of target-group
-    and
-    any? [[prestige] of myself > prestige-need - prestige-tol] of target-group
-  ]
-;  set n-products
-  hatch-products 3 [
+  ; check if you have enough money
+  set capital capital - cost * n-products
+  hatch-products n-products [
     set age 0
     create-ownership-from myself
   ]
