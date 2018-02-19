@@ -47,6 +47,7 @@ producers-own [
   prestige             ; how high is the prestige/quality (in terms of luxury, not longevity) of the product?
   cost                 ; what is the production cost per product?
   price                ; at what price does the producer decide to sell her product?
+  n-products           ; how many products to produce each tick?
 ]
 
 consumers-own [
@@ -328,14 +329,17 @@ to setup-consumers
   ]
 end
 
-; what is exepctation value for next tick's consumption of a certain product class?
-to-report demand [pc-index] ; index of the product class
+; consumer method, returns list of consumer demands
+to-report consumer-demand [pc-index]
   let pc item pc-index product-classes
-  report sum [
-    item (
+  report item (
       count out-ownership-neighbors with [product-class = pc]
     ) item pc-index consumption-need
-  ] of consumers
+end
+
+; what is exepctation value for next tick's consumption of a certain product class?
+to-report demand [pc-index] ; index of the product class
+  report sum [consumer-demand pc-index] of consumers
 end
 
 ; report demands of all product classes
@@ -441,6 +445,19 @@ end
 
 ; producer method
 to produce
+  let target-group consumers with [
+    sustainability-need - sustainability-tol < [sustainability] of myself and
+    sustainability-need + sustainability-tol > [sustainability] of myself and
+    prestige-need - prestige-tol < [prestige] of myself and
+    prestige-need + prestige-tol > [prestige] of myself
+  ]
+  let target-demand sum [consumer-demand [product-class-index] of myself] of target-group
+  let competitors producers with [
+    any? [[sustainability] of myself > sustainability-need - sustainability-tol] of target-group
+    and
+    any? [[prestige] of myself > prestige-need - prestige-tol] of target-group
+  ]
+;  set n-products
   hatch-products 3 [
     set age 0
     create-ownership-from myself
