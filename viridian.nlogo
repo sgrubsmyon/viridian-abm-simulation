@@ -81,15 +81,6 @@ products-own [
 ;;; GENERAL USEFUL FUNCTIONS MISSING IN NETLOGO ;;;
 
 ; report index of (first occurrence of) item in list
-to-report index-of [itm lst]
-  let index 0
-  foreach lst [ x ->
-    if x = itm [report index]
-    set index index + 1
-  ]
-  report -1
-end
-
 ; create the cumulative sum of a list
 to-report cumsum [lst]
   let result []
@@ -384,7 +375,7 @@ to setup-producer
   let demands-cumsum map [ x -> x / demands-sum ] cumsum demands
   ; draw a random number n between 0 and 1, the product class index is the index of the first cumsum entry larger than that number
   let n random-float 1
-  set product-class-index index-of true map [ x -> n < x ] demands-cumsum
+  set product-class-index position true map [ x -> n < x ] demands-cumsum
   set product-class item product-class-index product-classes
 
   orient-producer
@@ -398,7 +389,7 @@ to orient-producer
 
   ; determine a randomly selected customer on which to orient the production (sustainability and prestige)
   let n random-float 1
-  let target index-of true map [ x -> n < x ] cumulative-demand i
+  let target position true map [ x -> n < x ] cumulative-demand i
 
   set sustainability [sustainability-need] of consumer target
 
