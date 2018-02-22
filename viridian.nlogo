@@ -34,9 +34,12 @@ globals [
   similarity-needs     ; for each milieu: how are the typical similarity needs? (avg/std)
   prestige-needs       ; for each milieu: how are the typical prestige needs? (avg/std)
 
-  sustainability-tols  ; for each milieu: how much is sustainability of consumption allowed to deviate?
-  similarity-tols      ; for each milieu: how much is similarity of consumption allowed to deviate?
-  prestige-tols        ; for each milieu: how much is prestige of consumption allowed to deviate?
+  sust-tols-down       ; for each milieu: how much is sustainability of consumption allowed to deviate?
+  sust-tols-up         ; for each milieu: how much is sustainability of consumption allowed to deviate?
+  sim-tols-down        ; for each milieu: how much is similarity of consumption allowed to deviate?
+  sim-tols-up          ; for each milieu: how much is similarity of consumption allowed to deviate?
+  prest-tols-down      ; for each milieu: how much is prestige of consumption allowed to deviate?
+  prest-tols-up        ; for each milieu: how much is prestige of consumption allowed to deviate?
 ]
 
 producers-own [
@@ -63,9 +66,12 @@ consumers-own [
   similarity-need      ; how much can consumption behaviour deviate from peers?
   prestige-need        ; how much prestige/quality (luxury) of products does the individual want? (avg/std)
   suppliers            ; list of producers (one per product class) where this consumer currently buys products
-  sustainability-tol   ; how much may consumption deviate from sustainability goal?
-  similarity-tol       ; how much may consumption deviate from similarity goal?
-  prestige-tol         ; how much may consumption deviate from prestige goal?
+  sust-tol-down        ; how much may consumption deviate from sustainability goal?
+  sust-tol-up          ; how much may consumption deviate from sustainability goal?
+  sim-tol-down         ; how much may consumption deviate from similarity goal?
+  sim-tol-up           ; how much may consumption deviate from similarity goal?
+  prest-tol-down       ; how much may consumption deviate from prestige goal?
+  prest-tol-up         ; how much may consumption deviate from prestige goal?
 ]
 
 products-own [
@@ -265,23 +271,41 @@ to setup-globals
     [9 1] ; prestige
     [5 4] ; small income
   ]
-  set sustainability-tols [ ; how many points deviation is allowed?
+  set sust-tols-down [ ; how many points deviation is allowed?
     1 ; eco
     5 ; conservative
     10 ; prestige
     10 ; small income
   ]
-  set similarity-tols [ ; how many points deviation is allowed?
+  set sust-tols-up [ ; how many points deviation is allowed?
+    10 ; eco
+    10 ; conservative
+    10 ; prestige
+    10 ; small income
+  ]
+  set sim-tols-down [ ; how many points deviation is allowed?
     3 ; eco
     5 ; conservative
     2 ; prestige
     3 ; small income
   ]
-  set prestige-tols [ ; how many points deviation is allowed?
+  set sim-tols-up [ ; how many points deviation is allowed?
+    3 ; eco
+    5 ; conservative
+    2 ; prestige
+    3 ; small income
+  ]
+  set prest-tols-down [ ; how many points deviation is allowed?
     5 ; eco
     3 ; conservative
     1 ; prestige
     2 ; small income
+  ]
+  set prest-tols-up [ ; how many points deviation is allowed?
+    10 ; eco
+    10 ; conservative
+    10 ; prestige
+    10 ; small income
   ]
 end
 
@@ -314,9 +338,12 @@ to setup-consumers
       set sustainability-need safe-random-normal 0 10 item 0 item i sustainability-needs item 1 item i sustainability-needs
       set similarity-need safe-random-normal 0 10 item 0 item i similarity-needs item 1 item i similarity-needs
       set prestige-need safe-random-normal 0 10 item 0 item i prestige-needs item 1 item i prestige-needs
-      set sustainability-tol item i sustainability-tols
-      set similarity-tol item i similarity-tols
-      set prestige-tol item i prestige-tols
+      set sust-tol-down item i sust-tols-down
+      set sust-tol-up item i sust-tols-up
+      set sim-tol-down item i sim-tols-down
+      set sim-tol-up item i sim-tols-up
+      set prest-tol-down item i prest-tols-down
+      set prest-tol-up item i prest-tols-up
 
       setxy sustainability-need / 10 * max-pxcor prestige-need / 10 * max-pycor
       set color item i milieu-colors
@@ -474,10 +501,10 @@ end
 ; consumer method
 to-report can-buy-at? [prod]
   report (
-    sustainability-need - sustainability-tol < [sustainability] of prod and
-    sustainability-need + sustainability-tol > [sustainability] of prod and
-    prestige-need - prestige-tol < [prestige] of prod and
-    prestige-need + prestige-tol > [prestige] of prod
+    sustainability-need - sust-tol-down < [sustainability] of prod and
+    sustainability-need + sust-tol-up > [sustainability] of prod and
+    prestige-need - prest-tol-down < [prestige] of prod and
+    prestige-need + prest-tol-up > [prestige] of prod
   )
 end
 
@@ -768,6 +795,42 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"mobility-alt\"]"
+
+PLOT
+15
+113
+215
+263
+Producer count
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot count producers"
+
+PLOT
+20
+284
+220
+434
+Consumer count
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot count consumers"
 
 @#$#@#$#@
 ## WHAT IS IT?
