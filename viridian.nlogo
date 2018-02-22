@@ -27,7 +27,7 @@ globals [
   prestige-weights     ; for each product class: how are products weighted with respect to each other?
 
   income-distributions ; for each milieu: what is a typical income distribution?
-  influentiabilities   ; for each milieu: how is the typical influentiability? (avg/std)
+;  influentiabilities   ; for each milieu: how is the typical influentiability? (avg/std)
 
   consumption-needs    ; for each milieu: how are the typical consumption needs? (avg/std for each product class)
   sustainability-needs ; for each milieu: how are the typical sustainability needs? (avg/std)
@@ -60,12 +60,12 @@ consumers-own [
   milieu
   income
   capital              ; how much money does the consumer currently have?
-  influentiability     ; how easy is behaviour changed by interaction with neihgboring consumers (peers)?
+  suppliers            ; list of producers (one per product class) where this consumer currently buys products
+;  influentiability     ; how easy is behaviour changed by interaction with neihgboring consumers (peers)?
   consumption-need     ; how much consumption does the individual want/need? (for each product class)
   sustainability-need  ; how sustainable shall consumption be?
   similarity-need      ; how much can consumption behaviour deviate from peers?
   prestige-need        ; how much prestige/quality (luxury) of products does the individual want? (avg/std)
-  suppliers            ; list of producers (one per product class) where this consumer currently buys products
   sust-tol-down        ; how much may consumption deviate from sustainability goal?
   sust-tol-up          ; how much may consumption deviate from sustainability goal?
   sim-tol-down         ; how much may consumption deviate from similarity goal?
@@ -208,12 +208,12 @@ to setup-globals
     [500 1000 1000 1000 1000 2000 2000 2000 2000 2000 2000 3000 3000 3000 4000 4000]
     [500 500 500 500 500 500 1000 1000 1000]
   ]
-  set influentiabilities [ ; mean standard-deviation
-    [7.5 2.5] ; 7.5 +/- 2.5 eco
-    [3 2]     ;   3 +/- 2   conservative
-    [5.5 2.5] ; 5.5 +/- 2.5 prestige
-    [5.5 2.5] ; 5.5 +/- 2.5 small income
-  ]
+;  set influentiabilities [ ; mean standard-deviation
+;    [7.5 2.5] ; 7.5 +/- 2.5 eco
+;    [3 2]     ;   3 +/- 2   conservative
+;    [5.5 2.5] ; 5.5 +/- 2.5 prestige
+;    [5.5 2.5] ; 5.5 +/- 2.5 small income
+;  ]
   set consumption-needs [ ; average number of products bought per tick:
                           ; [mean std] if owns 0, [mean std] if owns 1, [mean std] if owns 2, [mean std] if owns 3 or more
     [ ; food
@@ -319,6 +319,10 @@ end
 to setup-consumers
   create-consumers n-consumers [
     set shape "turtle"
+    set suppliers []
+    repeat length product-classes [
+      set suppliers lput nobody suppliers
+    ]
     set milieu 0
   ]
   let i 0
@@ -328,11 +332,11 @@ to setup-consumers
     ask consumers with [milieu = m] [
       set income one-of item i income-distributions
       set capital start-capital-con
-      set influentiability safe-random-normal 0 10 item 0 item i influentiabilities item 1 item i influentiabilities
+;      set influentiability safe-random-normal 0 10 item 0 item i influentiabilities item 1 item i influentiabilities
       set consumption-need []
       foreach consumption-needs [ cn ->
         set consumption-need lput (
-          map [ j -> safe-random-normal 0 1 item 0 item j item i cn item 1 item j item i cn ] [0 1 2 3]
+          map [ j -> safe-random-normal 0 1 item 0 item j item i cn item 1 item j item i cn ] range length milieus
         ) consumption-need
       ]
       set sustainability-need safe-random-normal 0 10 item 0 item i sustainability-needs item 1 item i sustainability-needs
@@ -361,11 +365,13 @@ to-report consumer-demand [pc-index]
 end
 
 ; what is exepctation value for next tick's consumption of a certain product class?
+; observer method
 to-report demand [pc-index] ; index of the product class
   report sum [consumer-demand pc-index] of consumers
 end
 
 ; report demands of all product classes
+; observer method
 to-report demands
   let result []
   let pc-index 0
@@ -376,6 +382,7 @@ to-report demands
   report result
 end
 
+; observer method
 to-report cumulative-demand [pc-index] ; index of the product class
   let ids sort [who] of consumers ; because order of 'of' is random, use the sorted whos for defined order
   let cs cumsum map [ x ->
@@ -545,6 +552,22 @@ end
 to consume
   set capital capital + income ; pay monthly income to enable more consumption
   ; now go and buy stuff
+  ; decide if to go shopping for each product class
+  foreach range length product-classes [ i ->
+    ; interpret demand (number between 0 and 1) to be a probability that the consumer buys products from this product class this tick
+    ; (one product can stand for multiple, it's the full amount needed within one tick)
+    let prob consumer-demand i
+    let buy? (random-float 1) < prob
+    if buy? [
+      let my-supplier item i suppliers
+      if my-supplier != nobody [
+        ; check if supplier still matches the needs
+      ]
+      if my-supplier = nobody [
+        ; find matching supplier
+      ]
+    ]
+  ]
 end
 
 ; consumer method
@@ -815,9 +838,9 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot count producers"
 
 PLOT
-20
+15
 284
-220
+215
 434
 Consumer count
 NIL
