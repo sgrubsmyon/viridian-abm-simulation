@@ -27,7 +27,6 @@ globals [
   prestige-weights     ; for each product class: how are products weighted with respect to each other?
 
   income-distributions ; for each milieu: what is a typical income distribution?
-;  influentiabilities   ; for each milieu: how is the typical influentiability? (avg/std)
 
   consumption-needs    ; for each milieu: how are the typical consumption needs? (avg/std for each product class)
   sustainability-needs ; for each milieu: how are the typical sustainability needs? (avg/std)
@@ -61,7 +60,6 @@ consumers-own [
   income
   capital              ; how much money does the consumer currently have?
   suppliers            ; list of producers (one per product class) where this consumer currently buys products
-;  influentiability     ; how easy is behaviour changed by interaction with neihgboring consumers (peers)?
   consumption-need     ; how much consumption does the individual want/need? (for each product class)
   sustainability-need  ; how sustainable shall consumption be?
   similarity-need      ; how much can consumption behaviour deviate from peers?
@@ -208,12 +206,6 @@ to setup-globals
     [500 1000 1000 1000 1000 2000 2000 2000 2000 2000 2000 3000 3000 3000 4000 4000]
     [500 500 500 500 500 500 1000 1000 1000]
   ]
-;  set influentiabilities [ ; mean standard-deviation
-;    [7.5 2.5] ; 7.5 +/- 2.5 eco
-;    [3 2]     ;   3 +/- 2   conservative
-;    [5.5 2.5] ; 5.5 +/- 2.5 prestige
-;    [5.5 2.5] ; 5.5 +/- 2.5 small income
-;  ]
   set consumption-needs [ ; average number of products bought per tick:
                           ; [mean std] if owns 0, [mean std] if owns 1, [mean std] if owns 2, [mean std] if owns 3 or more
     [ ; food
@@ -332,7 +324,6 @@ to setup-consumers
     ask consumers with [milieu = m] [
       set income one-of item i income-distributions
       set capital start-capital-con
-;      set influentiability safe-random-normal 0 10 item 0 item i influentiabilities item 1 item i influentiabilities
       set consumption-need []
       foreach consumption-needs [ cn ->
         set consumption-need lput (
