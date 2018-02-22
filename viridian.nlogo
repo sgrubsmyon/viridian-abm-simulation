@@ -9,6 +9,8 @@ globals [
 
   start-capital-factor ; starting capital for producers (factor to be multiplied with production cost of product)
   start-capital-con    ; starting capital for consumers
+  fixed-costs-prop     ; what fraction of capital must producer pay each round?
+  fixed-costs          ; what fixed amount must producer pay each round?
 
   milieus              ; list of consumer milieus
   milieu-fractions     ; what fractions of all consumers belong to the milieus?
@@ -48,6 +50,7 @@ producers-own [
   cost                 ; what is the production cost per product?
   price                ; at what price does the producer decide to sell her product?
   n-products           ; how many products to produce each tick?
+  n-sale               ; how many products has producer sold last tick?
 ]
 
 consumers-own [
@@ -109,6 +112,8 @@ to setup-globals
   set n-consumers 100
   set start-capital-factor 10
   set start-capital-con 2000
+  set fixed-costs-prop 0.1
+  set fixed-costs 100
   set product-classes [
     "food"
     "textiles"
@@ -295,7 +300,7 @@ to setup-consumers
   let i 0
   foreach milieus [ m ->
     let f (item i milieu-fractions)
-    ask n-of int (f * n-consumers) consumers with [milieu = 0] [set milieu m]
+    ask n-of round (f * n-consumers) consumers with [milieu = 0] [set milieu m]
     ask consumers with [milieu = m] [
       set income one-of item i income-distributions
       set capital start-capital-con
@@ -345,14 +350,9 @@ to-report demands
 end
 
 to-report cumulative-demand [pc-index] ; index of the product class
-  let pc item pc-index product-classes
   let ids sort [who] of consumers ; because order of 'of' is random, use the sorted whos for defined order
   let cs cumsum map [ x ->
-    [
-      item (
-        count out-ownership-neighbors with [product-class = pc]
-      ) item pc-index consumption-need
-    ] of consumer x
+    [consumer-demand pc-index] of consumer x
   ] ids
   set cs map [ x -> x / demand pc-index ] cs
   report lput 1 but-last cs
@@ -389,7 +389,9 @@ to orient-producer
 
   ; determine a randomly selected customer on which to orient the production (sustainability and prestige)
   let n random-float 1
-  let target position true map [ x -> n < x ] cumulative-demand i
+  let target position true map [ x -> x > n ] cumulative-demand i
+  set target item target sort [who] of consumers ; this line should not be needed because consumers' who starts at 0,
+                                                 ; but just to be sure (if letting consumers die, this might be needed)
 
   set sustainability [sustainability-need] of consumer target
 
@@ -425,9 +427,12 @@ to orient-producer
     set price (max-price - min-price) * random-float 1 + min-price
   ]
   set n-products -1
+  set n-sale 0
 end
 
 to go
+  ask producers [pay-costs] ; some producers may die
+  create-new-producers ; create new producers if some died
   ask consumers [use-products]
   ask producers [produce]
   ask consumers [consume]
@@ -436,8 +441,34 @@ to go
   tick
 end
 
+; producer method
+to pay-costs
+  set capital (1 - fixed-costs-prop) * capital ; pay variable costs
+  set capital capital - fixed-costs ; pay fixed costs
+  if capital < cost [ ; if producer cannot produce at least one product
+    die
+  ]
+end
+
+; observer method
+to create-new-producers
+  let current-n-producers count producers
+  if current-n-producers < n-producers [
+    create-producers (n-producers - current-n-producers) [
+      setup-producer
+    ]
+  ]
+end
+
 ; consumer method
 to use-products
+  let my-products out-ownership-neighbors
+  ask my-products [
+    set age age + 1
+    if age >= random-normal lifespan lifespan-variance [
+      die ; product is used up/broken
+    ]
+  ]
 end
 
 ; consumer method
@@ -450,22 +481,33 @@ to-report can-buy-at? [prod]
   )
 end
 
+; prodcuer method
+to guess-n-products
+  let target-group consumers with [can-buy-at? myself]
+  let target-demand sum [consumer-demand [product-class-index] of myself] of target-group
+  let competitors producers with [ ; competitors includes the producer running this code (which is wanted)
+    ; can any consumer in the target group also buy at this producer? does it produce the same product class? then it's a competitor
+    product-class-index = [product-class-index] of myself and
+    member? true [can-buy-at? myself] of target-group
+  ]
+  let expected-demand max list round (target-demand / (count competitors)) 1 ; assume demand to be at least 1 product (even if rounded demand is 0)
+  let risk (random 3) + 1 ; prooducer has a random risk
+  set n-products min list (expected-demand * risk) 10 ; produce at most 10 products (maximum possible with initial capital)
+end
+
 ; producer method
 to produce
   if n-products < 0 [
     ; determine n-products anew
-    let target-group consumers with [can-buy-at? myself]
-    let target-demand sum [consumer-demand [product-class-index] of myself] of target-group
-    let competitors producers with [
-      ; can any consumer in the target group also buy at this producer? does it produce the same product class? then it's a competitor
-      product-class-index = [product-class-index] of myself and
-      member? true [can-buy-at? myself] of target-group
-    ]
-    let risk (random 3) + 1
-    set n-products min list (int (target-demand / (count competitors)) * risk) 10
+    guess-n-products
   ]
+  let expenses n-products * cost
   ; check if you have enough money
-  set capital capital - cost * n-products
+  if expenses > capital [
+    set n-products floor (capital / cost)
+    set expenses n-products * cost
+  ]
+  set capital capital - expenses
   hatch-products n-products [
     set age 0
     create-ownership-from myself
@@ -474,6 +516,8 @@ end
 
 ; consumer method
 to consume
+  set capital capital + income ; pay monthly income to enable more consumption
+  ; now go and buy stuff
 end
 
 ; consumer method
