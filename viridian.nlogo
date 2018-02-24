@@ -22,23 +22,27 @@ globals [
   lifespan-variances   ; for each product class: variance of average lifespan
   lifespan-vs-sust     ; for each product class: function mapping [0..10] (sustainability) onto [0..1] (0 means min-lifespan, 1 means max-lifespan)
   cost-vs-sust         ; for each product class: function mapping [0..10] (sustainability) onto [0..1] (0 means min-cost, 1 means max-cost)
-  price-vs-prest        ; for each product class: function mapping [0..10] (prestige) onto [0..1] (0 means min-cost, 1 means max-cost)
+  price-vs-prest       ; for each product class: function mapping [0..10] (prestige) onto [0..1] (0 means min-cost, 1 means max-cost)
 
-  prestige-weights     ; for each product class: how are products weighted with respect to each other?
+  product-weights      ; for each product class: how are products weighted with respect to each other?
 
   income-distributions ; for each milieu: what is a typical income distribution?
 
   consumption-needs    ; for each milieu: how are the typical consumption needs? (avg/std for each product class)
-  sustainability-needs ; for each milieu: how are the typical sustainability needs? (avg/std)
   similarity-needs     ; for each milieu: how are the typical similarity needs? (avg/std)
-  prestige-needs       ; for each milieu: how are the typical prestige needs? (avg/std)
+  similarity-tols      ; for each milieu: how much is similarity of consumption allowed to deviate?
 
-  sust-tols-down       ; for each milieu: how much is sustainability of consumption allowed to deviate?
-  sust-tols-up         ; for each milieu: how much is sustainability of consumption allowed to deviate?
-  sim-tols-down        ; for each milieu: how much is similarity of consumption allowed to deviate?
-  sim-tols-up          ; for each milieu: how much is similarity of consumption allowed to deviate?
-  prest-tols-down      ; for each milieu: how much is prestige of consumption allowed to deviate?
-  prest-tols-up        ; for each milieu: how much is prestige of consumption allowed to deviate?
+  sust-weights         ; for each milieu: how is sustainability typically weighted (between 0 and 1)? (avg/std)
+  prest-weights        ; for each milieu: how is prestige typically weighted (between 0 and 1)? (avg/std)
+  wmin                 ; globally: what is the smallest possible weight (none of the three dimensions sust., prest., price shall be completely unconsidered)
+  wmax                 ; globally: what is the largest possible weight
+
+  sust-mins            ; for each milieu: how good must sustainability at least be to consider prodcuer?
+  prest-mins           ; for each milieu: how good must prestige at least be to consider prodcuer?
+
+  score-tols           ; for the score value calculated for each consumer product combination, how much lower
+                       ; than the maximum can the score value be before the consumer stops buying at the
+                       ; producer? (how "loyal" is the consumer?)
 ]
 
 producers-own [
@@ -61,26 +65,26 @@ consumers-own [
   capital              ; how much money does the consumer currently have?
   suppliers            ; list of producers (one per product class) where this consumer currently buys products
   consumption-need     ; how much consumption does the individual want/need? (for each product class)
-  sustainability-need  ; how sustainable shall consumption be?
   similarity-need      ; how much can consumption behaviour deviate from peers?
-  prestige-need        ; how much prestige/quality (luxury) of products does the individual want? (avg/std)
-  sust-tol-down        ; how much may consumption deviate from sustainability goal?
-  sust-tol-up          ; how much may consumption deviate from sustainability goal?
-  sim-tol-down         ; how much may consumption deviate from similarity goal?
-  sim-tol-up           ; how much may consumption deviate from similarity goal?
-  prest-tol-down       ; how much may consumption deviate from prestige goal?
-  prest-tol-up         ; how much may consumption deviate from prestige goal?
+  similarity-tol       ; how much may consumption deviate from similarity goal?
+  sust-weight          ; how important is sustainable consumption?
+  prest-weight         ; how important is prestige/quality (luxury) of products?
+  price-weight         ; how important is a low price of products? (sum of sust-weight, prest-weight, price-weight is 1)
+  sust-min             ; how sustainable must consumption at least be?
+  prest-min            ; how much prestige must consumption at least have?
+  score-tol            ; how loyal is the consumer? how much score deviation is tolerated?
 ]
 
 products-own [
   product-class        ; what class does this product belong to?
 ;  quantity             ; how much of the product is currently stored in this product store? store individual products so this is always 1.
 ;  priority             ; how urgent does the consumer this product belongs to need more of it? store this not in the product, but in the consumer.
+  sustainability       ; how sustainable was this product produced?
   lifespan             ; how many ticks until this product is on average broken (since it's been bought)?
   lifespan-variance    ; how much can actual lifespan deviate from average lifespan?
-  age                  ; how many ticks since product was bought?
-  sustainability       ; how sustainable was this product produced?
   prestige             ; how much prestige does the consumer get from owning this product? (how high is the quality?)
+  price                ; for how much is/was this product sold?
+  age                  ; how many ticks since product was bought?
 ]
 
 
@@ -174,7 +178,7 @@ to setup-globals
     [ x -> x / 10 ] ; IT
     [ x -> x / 10 ] ; others
   )
-  set prestige-weights [
+  set product-weights [
     0.05 ; food
     0.15 ; textiles
     0.30 ; mobility-car
@@ -245,59 +249,49 @@ to setup-globals
       [[0.7 0.2] [0.1 0.1] [0 0] [0 0]] ; small income
     ]
   ]
-  set sustainability-needs [ ; mean standard-deviation
-    [8 2] ;       8 +/- 2 eco
-    [3 2] ;       3 +/- 2 conservative
-    [1 1] ;       1 +/- 1 prestige
-    [1 1] ;       1 +/- 1 small income
-  ]
   set similarity-needs [ ; mean standard-deviation
     [5 3] ;       5 +/- 3 eco
     [7 3] ;       7 +/- 3 conservative
     [9 1] ;       9 +/- 1 prestige
     [5 3] ;       5 +/- 3 small income
   ]
-  set prestige-needs [ ; mean standard-deviation
-    [3 2] ; eco
-    [7 2] ; conservative
-    [9 1] ; prestige
-    [5 4] ; small income
-  ]
-  set sust-tols-down [ ; how many points deviation is allowed?
-    1 ; eco
-    5 ; conservative
-    10 ; prestige
-    10 ; small income
-  ]
-  set sust-tols-up [ ; how many points deviation is allowed?
-    10 ; eco
-    10 ; conservative
-    10 ; prestige
-    10 ; small income
-  ]
-  set sim-tols-down [ ; how many points deviation is allowed?
+  set similarity-tols [ ; how many points deviation is allowed?
     3 ; eco
     5 ; conservative
     2 ; prestige
     3 ; small income
   ]
-  set sim-tols-up [ ; how many points deviation is allowed?
-    3 ; eco
-    5 ; conservative
-    2 ; prestige
-    3 ; small income
+  set sust-weights [ ; mean standard-deviation
+    [0.6 0.1] ; 0.6 +/- 0.1 eco
+    [0.2 0.1] ; 0.2 +/- 0.1 conservative
+    [0.1 0.1] ; 0.1 +/- 0.1 prestige
+    [0.1 0.1] ; 0.1 +/- 0.1 small income
   ]
-  set prest-tols-down [ ; how many points deviation is allowed?
+  set prest-weights [ ; mean standard-deviation
+    [0.2 0.1] ; eco
+    [0.3 0.1] ; conservative
+    [0.6 0.1] ; prestige
+    [0.4 0.1] ; small income
+  ]
+  set wmin 0.05 ; at least 5 % consideration for each dimension (sustainability/prestige/price)
+  set wmax 1. - 2. * wmin
+  set sust-mins [ ; min expectation of sustainability
     5 ; eco
+    2 ; conservative
+    0 ; prestige
+    0 ; small income
+  ]
+  set prest-mins [ ; min expectation of prestige
+    1 ; eco
     3 ; conservative
-    1 ; prestige
+    5 ; prestige
     2 ; small income
   ]
-  set prest-tols-up [ ; how many points deviation is allowed?
-    10 ; eco
-    10 ; conservative
-    10 ; prestige
-    10 ; small income
+  set score-tols [ ; loyalty towards prodcuers
+    2 ; eco
+    3 ; conservative
+    1 ; prestige
+    1 ; small income
   ]
 end
 
@@ -306,6 +300,26 @@ to-report safe-random-normal [nmin nmax nmean std]
   if number < nmin [ set number nmin ]
   if number > nmax [ set number nmax ]
   report number
+end
+
+; consumer method, for the tradeoff system driving consumer's buying behavior
+to-report draw-weights [i] ; i is index of milieu
+  let a -1.
+  let b -1.
+  let c -1.
+  while [c < 0] [
+    set a safe-random-normal wmin wmax item 0 item i sust-weights item 1 item i sust-weights
+    set b safe-random-normal wmin wmax item 0 item i prest-weights item 1 item i prest-weights
+    let c-try 1. - a - b
+    ; Need to check if the coordinates defined by this tuple (whose sum is 1) lie inside and not too close to the
+    ; edges of a triangle whose corners define one of the three extremes (e.g. a 1, the others 0).
+    ; This means that none of the three weights shall be smaller than a certain minimum (epsilon).
+    ; For the first 2, it is already ensured, but need to check 3rd one.
+    if c-try >= wmin [
+      set c c-try
+    ]
+  ]
+  report (list a b c)
 end
 
 to setup-consumers
@@ -330,17 +344,18 @@ to setup-consumers
           map [ j -> safe-random-normal 0 1 item 0 item j item i cn item 1 item j item i cn ] range length milieus
         ) consumption-need
       ]
-      set sustainability-need safe-random-normal 0 10 item 0 item i sustainability-needs item 1 item i sustainability-needs
       set similarity-need safe-random-normal 0 10 item 0 item i similarity-needs item 1 item i similarity-needs
-      set prestige-need safe-random-normal 0 10 item 0 item i prestige-needs item 1 item i prestige-needs
-      set sust-tol-down item i sust-tols-down
-      set sust-tol-up item i sust-tols-up
-      set sim-tol-down item i sim-tols-down
-      set sim-tol-up item i sim-tols-up
-      set prest-tol-down item i prest-tols-down
-      set prest-tol-up item i prest-tols-up
+      set similarity-tol item i similarity-tols
 
-      setxy sustainability-need / 10 * max-pxcor prestige-need / 10 * max-pycor
+      let weight-list draw-weights i
+      set sust-weight item 0 weight-list
+      set prest-weight item 1 weight-list
+      set price-weight item 2 weight-list
+
+      set sust-min item i sust-mins
+      set prest-min item i prest-mins
+
+      setxy sust-weight * max-pxcor prest-weight * max-pycor
       set color item i milieu-colors
     ]
     set i i + 1
@@ -418,7 +433,13 @@ to orient-producer
   set target item target sort [who] of consumers ; this line should not be needed because consumers' who starts at 0,
                                                  ; but just to be sure (if letting consumers die, this might be needed)
 
-  set sustainability [sustainability-need] of consumer target
+  ; this does not work anymore with the tradeoff system of consumers
+;  set sustainability [sustainability-need] of consumer target
+
+;  set sustainability [(sust-weight - wmin) / (wmax - wmin) * 10] of consumer target ; project weight on full range (0..10)
+  ; alternative:
+  let smin [sust-weight * 10] of consumer target
+  set sustainability (random-float (10 - smin)) + smin
 
   let min-lifespan item 0 item i min-max-lifespans
   let max-lifespan item 1 item i min-max-lifespans
@@ -428,7 +449,14 @@ to orient-producer
 ;  set lifespan random-float (max-lifespan - min-lifespan) + min-lifespan
   set lifespan-variance item i lifespan-variances
 
-  set prestige [prestige-need] of consumer target
+  ; this does not work anymore with the tradeoff system of consumers
+;  set prestige [prestige-need] of consumer target
+
+  ; draw a random target consumer again, then:
+;  set prestige [(prest-weight - wmin) / (wmax - wmin) * 10] of consumer target ; project weight on full range (0..10)
+  ; alternative:
+  let pmin [prest-weight * 10] of consumer target
+  set prestige (random-float (10 - pmin)) + pmin
 
   let min-cost item 0 item i min-max-costs
   let max-cost item 1 item i min-max-costs
@@ -496,26 +524,19 @@ to use-products
   ]
 end
 
-; consumer method
-to-report can-buy-at? [prod]
-  report (
-    sustainability-need - sust-tol-down < [sustainability] of prod and
-    sustainability-need + sust-tol-up > [sustainability] of prod and
-    prestige-need - prest-tol-down < [prestige] of prod and
-    prestige-need + prest-tol-up > [prestige] of prod
-  )
-end
-
 ; prodcuer method
 to guess-n-products
-  let target-group consumers with [can-buy-at? myself]
-  let target-demand sum [consumer-demand [product-class-index] of myself] of target-group
-  let competitors producers with [ ; competitors includes the producer running this code (which is wanted)
-    ; can any consumer in the target group also buy at this producer? does it produce the same product class? then it's a competitor
-    product-class-index = [product-class-index] of myself and
-    member? true [can-buy-at? myself] of target-group
-  ]
-  let expected-demand max list round (target-demand / (count competitors)) 1 ; assume demand to be at least 1 product (even if rounded demand is 0)
+  ; not working any more with tradeoff system:
+;  let target-group consumers with [can-buy-at? myself]
+;  let target-demand sum [consumer-demand [product-class-index] of myself] of target-group
+;  let competitors producers with [ ; competitors includes the producer running this code (which is wanted)
+;    ; can any consumer in the target group also buy at this producer? does it produce the same product class? then it's a competitor
+;    product-class-index = [product-class-index] of myself and
+;    member? true [can-buy-at? myself] of target-group
+;  ]
+;  let expected-demand max list round (target-demand / (count competitors)) 1 ; assume demand to be at least 1 product (even if rounded demand is 0)
+  let competitors producers with [ product-class-index = [product-class-index] of myself ]
+  let expected-demand max list round (demand product-class-index / (count competitors)) 1 ; assume demand to be at least 1 product (even if rounded demand is 0)
   let risk (random 3) + 1 ; prooducer has a random risk
   set n-products min list (expected-demand * risk) 10 ; produce at most 10 products (maximum possible with initial capital)
 end
@@ -570,9 +591,9 @@ to re-orient
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-221
+225
 17
-763
+767
 560
 -1
 -1
@@ -631,12 +652,12 @@ NIL
 1
 
 PLOT
-801
-13
-1149
-279
-Sustainability needs
-Sustainability need
+778
+18
+1126
+284
+Sustainability weights
+Sustainability weight * 10
 Number of turtles
 0.0
 10.0
@@ -646,13 +667,13 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "histogram [sustainability-need] of consumers"
+"default" 1.0 0 -16777216 true "" "histogram [sust-weight * 10] of consumers"
 
 PLOT
-1165
-14
-1509
-280
+1142
+19
+1486
+285
 Similarity needs
 Similarity need
 Number of turtles
@@ -667,12 +688,12 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [similarity-need] of consumers"
 
 PLOT
-802
-298
-1149
-561
-Prestige needs
-Prestige need
+779
+303
+1126
+566
+Prestige weights
+Prestige weight * 10
 Number of turtles
 0.0
 10.0
@@ -682,13 +703,13 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "histogram [prestige-need] of consumers"
+"default" 1.0 0 -16777216 true "" "histogram [prest-weight * 10] of consumers"
 
 PLOT
-190
-595
-390
-745
+9
+576
+209
+726
 Sustainability of food companies
 NIL
 NIL
@@ -703,10 +724,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"food\"]"
 
 PLOT
-456
-595
-656
-745
+219
+576
+419
+726
 Sustainability of textile companies
 NIL
 NIL
@@ -721,10 +742,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"textiles\"]"
 
 PLOT
-702
-595
-902
-745
+427
+576
+627
+726
 Sustainability of mobility companies
 NIL
 NIL
@@ -739,10 +760,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"mobility-car\"]"
 
 PLOT
-1173
-597
-1373
-747
+845
+576
+1045
+726
 Sustainability of IT companies
 NIL
 NIL
@@ -757,10 +778,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"IT\"]"
 
 PLOT
-1419
-602
-1619
-752
+1057
+576
+1257
+726
 Sustainability of other companies
 NIL
 NIL
@@ -775,10 +796,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"others\"]"
 
 PLOT
-1175
-301
-1510
-567
+1145
+304
+1480
+570
 Production costs
 Cost / 100
 Number of products
@@ -793,10 +814,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [cost / 100] of producers"
 
 PLOT
-935
-595
-1135
-745
+636
+576
+836
+726
 Sustainability of mobility-alt
 NIL
 NIL
@@ -845,6 +866,72 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot count consumers"
+
+MONITOR
+42
+746
+166
+791
+Mean food price
+mean [price] of products with [product-class = \"food\"]
+2
+1
+11
+
+MONITOR
+248
+745
+384
+790
+Mean textiles price
+mean [price] of products with [product-class = \"textiles\"]
+2
+1
+11
+
+MONITOR
+454
+743
+597
+788
+Mean mob-car price
+mean [price] of products with [product-class = \"mobility-car\"]
+2
+1
+11
+
+MONITOR
+666
+742
+805
+787
+Mean mob-alt price
+mean [price] of products with [product-class = \"mobility-alt\"]
+2
+1
+11
+
+MONITOR
+893
+740
+994
+785
+Mean IT price
+mean [price] of products with [product-class = \"IT\"]
+2
+1
+11
+
+MONITOR
+1094
+739
+1226
+784
+Mean others price
+mean [price] of products with [product-class = \"others\"]
+2
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
