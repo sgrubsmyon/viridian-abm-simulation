@@ -77,6 +77,7 @@ consumers-own [
 
 products-own [
   product-class        ; what class does this product belong to?
+  product-class-index  ; what is the index of that product class? (useful for lookup in lists)
 ;  quantity             ; how much of the product is currently stored in this product store? store individual products so this is always 1.
 ;  priority             ; how urgent does the consumer this product belongs to need more of it? store this not in the product, but in the consumer.
   sustainability       ; how sustainable was this product produced?
@@ -366,7 +367,7 @@ end
 to-report consumer-demand [pc-index]
   let pc item pc-index product-classes
   report item (
-      count out-ownership-neighbors with [product-class = pc]
+      count ownership-neighbors with [product-class = pc]
     ) item pc-index consumption-need
 end
 
@@ -433,7 +434,7 @@ to orient-producer
   set target item target sort [who] of consumers ; this line should not be needed because consumers' who starts at 0,
                                                  ; but just to be sure (if letting consumers die, this might be needed)
 
-  ; this does not work anymore with the tradeoff system of consumers
+  ; this does not work any more with the tradeoff system of consumers
 ;  set sustainability [sustainability-need] of consumer target
 
 ;  set sustainability [(sust-weight - wmin) / (wmax - wmin) * 10] of consumer target ; project weight on full range (0..10)
@@ -449,7 +450,7 @@ to orient-producer
 ;  set lifespan random-float (max-lifespan - min-lifespan) + min-lifespan
   set lifespan-variance item i lifespan-variances
 
-  ; this does not work anymore with the tradeoff system of consumers
+  ; this does not work any more with the tradeoff system of consumers
 ;  set prestige [prestige-need] of consumer target
 
   ; draw a random target consumer again, then:
@@ -499,6 +500,7 @@ to pay-costs
   set capital (1 - fixed-costs-prop) * capital ; pay variable costs
   set capital capital - fixed-costs ; pay fixed costs
   if capital < cost [ ; if producer cannot produce at least one product
+    ask ownership-neighbors [die] ; let products owned by producer die as well
     die
   ]
 end
@@ -515,7 +517,7 @@ end
 
 ; consumer method
 to use-products
-  let my-products out-ownership-neighbors
+  let my-products ownership-neighbors
   ask my-products [
     set age age + 1
     if age >= random-normal lifespan lifespan-variance [
@@ -562,7 +564,7 @@ end
 
 ; consumer mtehod
 ; calculate the tradeoff system score value for one producer
-to-report evaluate-producer [prod min-price]
+to-report evaluate-prod [prod min-price]
   report sust-weight * [sustainability] of prod + prest-weight * [prestige] of prod + price-weight * 10 * min-price / [price] of prod
 end
 
@@ -573,7 +575,7 @@ to-report be-evaluated-by [cons min-price]
 end
 
 ; consumer method
-to-report find-best-producer [prods min-price]
+to-report find-best-prod [prods min-price]
   report max-one-of prods [
     be-evaluated-by myself min-price
   ]
@@ -590,25 +592,38 @@ to consume
     let prob consumer-demand i
     let buy? (random-float 1) < prob
     if buy? [
-      let prods producers with [product-class-index = i]
+;      let prods producers with [product-class-index = i]
+      ; don't evaluate producers, but their products:
+      let prods turtle-set [ownership-neighbors] of (producers with [product-class-index = i])
       let min-price min [price] of prods
-      let best-prod find-best-producer prods min-price
+      let best-prod find-best-prod prods min-price
       let my-supplier item i suppliers
+      let my-best-prod nobody
       if my-supplier != nobody [
         ; check if supplier still matches the needs
-        let best-score evaluate-producer best-prod min-price
-        let my-score evaluate-producer my-supplier min-price
-        if (best-score - my-score) > score-tol [
+        set my-best-prod find-best-prod [ownership-neighbors] of my-supplier min-price
+        let best-score evaluate-prod best-prod min-price
+        let my-best-score evaluate-prod my-best-prod min-price
+        if (best-score - my-best-score) > score-tol [
+          ; don't buy at this guy
           set my-supplier nobody
         ]
       ]
       if my-supplier = nobody [
-        ; just take the best producer
-        set my-supplier best-prod
+        ; just take the best product
+        set my-best-prod best-prod
+        set my-supplier one-of [ownership-neighbors] of my-best-prod
         set suppliers replace-item i suppliers my-supplier ; remember this producer for next tick
       ]
 
-      ; now we know where to buy
+      ; now we know which product to buy, let's buy it!
+      ; transfer the money
+      let amount [price] of my-best-prod
+      set capital capital - amount
+      ask my-supplier [ set capital capital + amount ]
+      ; transfer the ownership
+      ask [my-ownerships] of my-best-prod [die]
+      create-ownership-to my-best-prod
     ]
   ]
 end
@@ -649,10 +664,10 @@ ticks
 30.0
 
 BUTTON
-27
-52
-100
-85
+32
+41
+105
+74
 NIL
 setup
 NIL
@@ -666,10 +681,10 @@ NIL
 1
 
 BUTTON
-109
-52
-190
-85
+114
+41
+195
+74
 NIL
 go
 T
@@ -864,9 +879,9 @@ PENS
 
 PLOT
 15
-113
+93
 215
-263
+243
 Producer count
 NIL
 NIL
@@ -882,9 +897,9 @@ PENS
 
 PLOT
 15
-284
+252
 215
-434
+402
 Consumer count
 NIL
 NIL
@@ -963,6 +978,24 @@ mean [price] of products with [product-class = \"others\"]
 2
 1
 11
+
+PLOT
+14
+412
+214
+562
+Product count
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot count products"
 
 @#$#@#$#@
 ## WHAT IS IT?
