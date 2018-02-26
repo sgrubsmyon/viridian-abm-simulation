@@ -560,6 +560,25 @@ to produce
   ]
 end
 
+; consumer mtehod
+; calculate the tradeoff system score value for one producer
+to-report evaluate-producer [prod min-price]
+  report sust-weight * [sustainability] of prod + prest-weight * [prestige] of prod + price-weight * 10 * min-price / [price] of prod
+end
+
+; producer mtehod
+; calculate the tradeoff system score value of yourself for one consumer cons
+to-report be-evaluated-by [cons min-price]
+  report [sust-weight] of cons * sustainability + [prest-weight] of cons * prestige + [price-weight] of cons * 10 * min-price / price
+end
+
+; consumer method
+to-report find-best-producer [prods min-price]
+  report max-one-of prods [
+    be-evaluated-by myself min-price
+  ]
+end
+
 ; consumer method
 to consume
   set capital capital + income ; pay monthly income to enable more consumption
@@ -571,13 +590,25 @@ to consume
     let prob consumer-demand i
     let buy? (random-float 1) < prob
     if buy? [
+      let prods producers with [product-class-index = i]
+      let min-price min [price] of prods
+      let best-prod find-best-producer prods min-price
       let my-supplier item i suppliers
       if my-supplier != nobody [
         ; check if supplier still matches the needs
+        let best-score evaluate-producer best-prod min-price
+        let my-score evaluate-producer my-supplier min-price
+        if (best-score - my-score) > score-tol [
+          set my-supplier nobody
+        ]
       ]
       if my-supplier = nobody [
-        ; find matching supplier
+        ; just take the best producer
+        set my-supplier best-prod
+        set suppliers replace-item i suppliers my-supplier ; remember this producer for next tick
       ]
+
+      ; now we know where to buy
     ]
   ]
 end
@@ -592,9 +623,9 @@ end
 @#$#@#$#@
 GRAPHICS-WINDOW
 225
-17
+23
 767
-560
+566
 -1
 -1
 31.412
@@ -652,10 +683,10 @@ NIL
 1
 
 PLOT
-778
-18
-1126
-284
+780
+28
+1128
+294
 Sustainability weights
 Sustainability weight * 10
 Number of turtles
@@ -671,9 +702,9 @@ PENS
 
 PLOT
 1142
-19
+30
 1486
-285
+296
 Similarity needs
 Similarity need
 Number of turtles
@@ -688,10 +719,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [similarity-need] of consumers"
 
 PLOT
-779
-303
-1126
-566
+780
+307
+1127
+570
 Prestige weights
 Prestige weight * 10
 Number of turtles
@@ -796,9 +827,9 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [sustainability] of producers with [product-class = \"others\"]"
 
 PLOT
-1145
-304
-1480
+1143
+306
+1479
 570
 Production costs
 Cost / 100
