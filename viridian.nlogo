@@ -342,7 +342,7 @@ to setup-consumers
       set consumption-need []
       foreach consumption-needs [ cn ->
         set consumption-need lput (
-          map [ j -> safe-random-normal 0 1 item 0 item j item i cn item 1 item j item i cn ] range length milieus
+          map [ j -> safe-random-normal 0 1 item 0 item j item i cn item 1 item j item i cn ] range 4
         ) consumption-need
       ]
       set similarity-need safe-random-normal 0 10 item 0 item i similarity-needs item 1 item i similarity-needs
@@ -366,9 +366,9 @@ end
 ; consumer method, returns list of consumer demands
 to-report consumer-demand [pc-index]
   let pc item pc-index product-classes
-  report item (
-      count ownership-neighbors with [product-class = pc]
-    ) item pc-index consumption-need
+  let n-prods count ownership-neighbors with [product-class = pc]
+  if n-prods > 3 [ set n-prods 3 ]
+  report item n-prods item pc-index consumption-need
 end
 
 ; what is exepctation value for next tick's consumption of a certain product class?
@@ -558,7 +558,7 @@ to produce
   set capital capital - expenses
   hatch-products n-products [
     set age 0
-    create-ownership-from myself
+    create-ownership-from myself [hide-link]
   ]
 end
 
@@ -595,35 +595,45 @@ to consume
 ;      let prods producers with [product-class-index = i]
       ; don't evaluate producers, but their products:
       let prods turtle-set [ownership-neighbors] of (producers with [product-class-index = i])
-      let min-price min [price] of prods
-      let best-prod find-best-prod prods min-price
-      let my-supplier item i suppliers
-      let my-best-prod nobody
-      if my-supplier != nobody [
-        ; check if supplier still matches the needs
-        set my-best-prod find-best-prod [ownership-neighbors] of my-supplier min-price
-        let best-score evaluate-prod best-prod min-price
-        let my-best-score evaluate-prod my-best-prod min-price
-        if (best-score - my-best-score) > score-tol [
-          ; don't buy at this guy
-          set my-supplier nobody
+      if count prods > 0 [
+        ; if there is at least 1 product, try to buy, else do nothing
+        let min-price min [price] of prods
+        let best-prod find-best-prod prods min-price
+        let my-supplier item i suppliers
+        let my-best-prod nobody
+        if my-supplier != nobody [
+          ; check if supplier still matches the needs
+          let best-score evaluate-prod best-prod min-price
+          let my-prods [ownership-neighbors] of my-supplier
+          ifelse count my-prods < 1 [
+            ; nothing in stock, must buy somewhere else
+            set my-supplier nobody
+          ]
+          [
+            set my-best-prod find-best-prod my-prods min-price
+            let my-best-score evaluate-prod my-best-prod min-price
+            if (best-score - my-best-score) > score-tol [
+              ; don't buy at this guy
+              set my-supplier nobody
+            ]
+          ]
         ]
-      ]
-      if my-supplier = nobody [
-        ; just take the best product
-        set my-best-prod best-prod
-        set my-supplier one-of [ownership-neighbors] of my-best-prod
-        set suppliers replace-item i suppliers my-supplier ; remember this producer for next tick
-      ]
+        if my-supplier = nobody [
+          ; just take the best product
+          set my-best-prod best-prod
+          set my-supplier one-of [ownership-neighbors] of my-best-prod
+          set suppliers replace-item i suppliers my-supplier ; remember this producer for next tick
+        ]
 
-      ; now we know which product to buy, let's buy it!
-      ; transfer the money
-      let amount [price] of my-best-prod
-      set capital capital - amount
-      ask my-supplier [ set capital capital + amount ]
-      ; transfer the ownership
-      ask [my-ownerships] of my-best-prod [die]
-      create-ownership-to my-best-prod
+        ; now we know which product to buy, let's buy it!
+        ; transfer the money
+        let amount [price] of my-best-prod
+        set capital capital - amount
+        ask my-supplier [ set capital capital + amount ]
+        ; transfer the ownership
+        ask [my-ownerships] of my-best-prod [die]
+        create-ownership-to my-best-prod [hide-link]
+      ]
     ]
   ]
 end
@@ -882,7 +892,7 @@ PLOT
 93
 215
 243
-Producer count
+Producer who
 NIL
 NIL
 0.0
@@ -893,14 +903,15 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot count producers"
+"default" 1.0 0 -16777216 true "" "plot min [who] of producers"
+"pen-1" 1.0 0 -7500403 true "" "plot max [who] of producers"
 
 PLOT
 15
 252
 215
 402
-Consumer count
+Consumer who
 NIL
 NIL
 0.0
@@ -911,7 +922,8 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot count consumers"
+"default" 1.0 0 -16777216 true "" "plot min [who] of consumers"
+"pen-1" 1.0 0 -7500403 true "" "plot max [who] of consumers"
 
 MONITOR
 42
@@ -996,6 +1008,125 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot count products"
+
+PLOT
+19
+805
+219
+955
+Mean food price
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot mean [price] of products with [product-class = \"food\"]"
+
+PLOT
+225
+806
+425
+956
+Mean textiles price
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot mean [price] of products with [product-class = \"textiles\"]"
+
+PLOT
+432
+807
+632
+957
+Mean mob-car price
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot mean [price] of products with [product-class = \"mobility-car\"]"
+
+PLOT
+637
+807
+837
+957
+Mean mob-alt price
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot mean [price] of products with [product-class = \"mobility-alt\"]"
+
+PLOT
+846
+809
+1046
+959
+Mean IT price
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot mean [price] of products with [product-class = \"IT\"]"
+
+PLOT
+1058
+810
+1258
+960
+Mean others price
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot mean [price] of products with [product-class = \"others\"]"
+
+MONITOR
+1266
+578
+1483
+623
+Products of one consumer
+[ownership-neighbors] of consumer 46
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
