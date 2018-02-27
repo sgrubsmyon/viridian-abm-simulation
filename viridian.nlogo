@@ -576,7 +576,10 @@ end
 
 ; consumer method
 to-report find-best-prod [prods min-price]
-  report max-one-of prods [
+  report max-one-of prods with [
+    sustainability >= [sust-min] of myself and
+    prestige >= [prest-min] of myself
+  ] [
     be-evaluated-by myself min-price
   ]
 end
@@ -599,40 +602,48 @@ to consume
         ; if there is at least 1 product, try to buy, else do nothing
         let min-price min [price] of prods
         let best-prod find-best-prod prods min-price
-        let my-supplier item i suppliers
-        let my-best-prod nobody
-        if my-supplier != nobody [
-          ; check if supplier still matches the needs
-          let best-score evaluate-prod best-prod min-price
-          let my-prods [ownership-neighbors] of my-supplier
-          ifelse count my-prods < 1 [
-            ; nothing in stock, must buy somewhere else
-            set my-supplier nobody
-          ]
-          [
-            set my-best-prod find-best-prod my-prods min-price
-            let my-best-score evaluate-prod my-best-prod min-price
-            if (best-score - my-best-score) > score-tol [
-              ; don't buy at this guy
+        ; there may not be any product suiting my minimum needs
+        if best-prod != nobody [
+          let my-supplier item i suppliers
+          let my-best-prod nobody
+          if my-supplier != nobody [
+            ; check if supplier still matches the needs
+            let best-score evaluate-prod best-prod min-price
+            let my-prods [ownership-neighbors] of my-supplier
+            ifelse count my-prods < 1 [
+              ; nothing in stock, must buy somewhere else
               set my-supplier nobody
             ]
+            [
+              set my-best-prod find-best-prod my-prods min-price
+              ifelse my-best-prod != nobody [
+                let my-best-score evaluate-prod my-best-prod min-price
+                if (best-score - my-best-score) > score-tol [
+                  ; don't buy at this guy
+                  set my-supplier nobody
+                ]
+              ] [
+                ; supplier does not meet my minimum needs
+                set my-supplier nobody
+              ]
+            ]
           ]
-        ]
-        if my-supplier = nobody [
-          ; just take the best product
-          set my-best-prod best-prod
-          set my-supplier one-of [ownership-neighbors] of my-best-prod
-          set suppliers replace-item i suppliers my-supplier ; remember this producer for next tick
-        ]
+          if my-supplier = nobody [
+            ; just take the best product
+            set my-best-prod best-prod
+            set my-supplier one-of [ownership-neighbors] of my-best-prod
+            set suppliers replace-item i suppliers my-supplier ; remember this producer for next tick
+          ]
 
-        ; now we know which product to buy, let's buy it!
-        ; transfer the money
-        let amount [price] of my-best-prod
-        set capital capital - amount
-        ask my-supplier [ set capital capital + amount ]
-        ; transfer the ownership
-        ask [my-ownerships] of my-best-prod [die]
-        create-ownership-to my-best-prod [hide-link]
+          ; now we know which product to buy, let's buy it!
+          ; transfer the money
+          let amount [price] of my-best-prod
+          set capital capital - amount
+          ask my-supplier [ set capital capital + amount ]
+          ; transfer the ownership
+          ask [my-ownerships] of my-best-prod [die]
+          create-ownership-to my-best-prod [hide-link]
+        ]
       ]
     ]
   ]
@@ -1120,10 +1131,10 @@ PENS
 MONITOR
 1266
 578
-1483
+2074
 623
-Products of one consumer
-[ownership-neighbors] of consumer 46
+Products of consumer 46
+[sort [product-class] of ownership-neighbors] of consumer 46
 17
 1
 11
