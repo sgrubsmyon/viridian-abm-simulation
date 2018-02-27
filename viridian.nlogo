@@ -600,53 +600,67 @@ to consume
       let prods turtle-set [ownership-neighbors] of (producers with [product-class-index = i])
       if count prods > 0 [
         ; if there is at least 1 product, try to buy, else do nothing
-        let min-price min [price] of prods
-        let best-prod find-best-prod prods min-price
-        ; there may not be any product suiting my minimum needs
-        if best-prod != nobody [
-          let my-supplier item i suppliers
-          let my-best-prod nobody
-          if my-supplier != nobody [
-            ; check if supplier still matches the needs
-            let best-score evaluate-prod best-prod min-price
-            let my-prods [ownership-neighbors] of my-supplier
-            ifelse count my-prods < 1 [
-              ; nothing in stock, must buy somewhere else
-              set my-supplier nobody
-            ]
-            [
-              set my-best-prod find-best-prod my-prods min-price
-              ifelse my-best-prod != nobody [
-                let my-best-score evaluate-prod my-best-prod min-price
-                if (best-score - my-best-score) > score-tol [
-                  ; don't buy at this guy
-                  set my-supplier nobody
-                ]
-              ] [
-                ; supplier does not meet my minimum needs
-                set my-supplier nobody
-              ]
-            ]
-          ]
-          if my-supplier = nobody [
-            ; just take the best product
-            set my-best-prod best-prod
-            set my-supplier one-of [ownership-neighbors] of my-best-prod
-            set suppliers replace-item i suppliers my-supplier ; remember this producer for next tick
-          ]
-
-          ; now we know which product to buy, let's buy it!
-          ; transfer the money
-          let amount [price] of my-best-prod
-          set capital capital - amount
-          ask my-supplier [ set capital capital + amount ]
-          ; transfer the ownership
-          ask [my-ownerships] of my-best-prod [die]
-          create-ownership-to my-best-prod [hide-link]
-        ]
+        buy-best-of prods i
       ]
     ]
   ]
+end
+
+; consumer method
+to buy-best-of [prods i]
+  let min-price min [price] of prods
+  let best-prod find-best-prod prods min-price
+  ; there may not be any product suiting my minimum needs
+  if best-prod != nobody [
+    let my-supplier item i suppliers
+    let my-best-prod nobody
+    if my-supplier != nobody [
+      let supplier-list check-my-supplier my-supplier best-prod min-price
+      set my-supplier item 0 supplier-list
+      set my-best-prod item 1 supplier-list
+    ]
+    if my-supplier = nobody [
+      ; just take the best product
+      set my-best-prod best-prod
+      set my-supplier one-of [ownership-neighbors] of my-best-prod
+      set suppliers replace-item i suppliers my-supplier ; remember this producer for next tick
+    ]
+
+    ; now we know which product to buy, let's buy it!
+    ; transfer the money
+    let amount [price] of my-best-prod
+    set capital capital - amount
+    ask my-supplier [ set capital capital + amount ]
+    ; transfer the ownership
+    ask [my-ownerships] of my-best-prod [die]
+    create-ownership-to my-best-prod [hide-link]
+  ]
+end
+
+; consumer method
+to-report check-my-supplier [my-supplier best-prod min-price]
+  ; check if supplier still matches the needs
+  let best-score evaluate-prod best-prod min-price
+  let my-prods [ownership-neighbors] of my-supplier
+  let my-best-prod nobody
+  ifelse count my-prods < 1 [
+    ; nothing in stock, must buy somewhere else
+    set my-supplier nobody
+  ]
+  [
+    set my-best-prod find-best-prod my-prods min-price
+    ifelse my-best-prod != nobody [
+      let my-best-score evaluate-prod my-best-prod min-price
+      if (best-score - my-best-score) > score-tol [
+        ; don't buy at this guy
+        set my-supplier nobody
+      ]
+    ] [
+      ; supplier does not meet my minimum needs
+      set my-supplier nobody
+    ]
+  ]
+  report (list my-supplier my-best-prod)
 end
 
 ; consumer method
