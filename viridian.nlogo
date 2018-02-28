@@ -576,10 +576,7 @@ end
 
 ; consumer method
 to-report find-best-prod [prods min-price]
-  report max-one-of prods with [
-    sustainability >= [sust-min] of myself and
-    prestige >= [prest-min] of myself
-  ] [
+  report max-one-of prods [
     be-evaluated-by myself min-price
   ]
 end
@@ -597,13 +594,21 @@ to consume
     if buy? [
 ;      let prods producers with [product-class-index = i]
       ; don't evaluate producers, but their products:
-      let prods turtle-set [ownership-neighbors] of (producers with [product-class-index = i])
+      let prods filter-products (producers with [product-class-index = i])
       if count prods > 0 [
         ; if there is at least 1 product, try to buy, else do nothing
         buy-best-of prods i
       ]
     ]
   ]
+end
+
+; consumer method
+to-report filter-products [some-producers]
+  report turtle-set [ownership-neighbors with [
+    sustainability >= [sust-min] of myself and
+    prestige >= [prest-min] of myself
+  ] of some-producers
 end
 
 ; consumer method
@@ -622,7 +627,7 @@ to buy-best-of [prods i]
     if my-supplier = nobody [
       ; just take the best product
       set my-best-prod best-prod
-      set my-supplier one-of [ownership-neighbors] of my-best-prod
+      set my-supplier one-of [ownership-neighbors] of best-prod
       set suppliers replace-item i suppliers my-supplier ; remember this producer for next tick
     ]
 
@@ -641,7 +646,7 @@ end
 to-report check-my-supplier [my-supplier best-prod min-price]
   ; check if supplier still matches the needs
   let best-score evaluate-prod best-prod min-price
-  let my-prods [ownership-neighbors] of my-supplier
+  let my-prods filter-products my-supplier
   let my-best-prod nobody
   ifelse count my-prods < 1 [
     ; nothing in stock, must buy somewhere else
@@ -652,7 +657,7 @@ to-report check-my-supplier [my-supplier best-prod min-price]
     ifelse my-best-prod != nobody [
       let my-best-score evaluate-prod my-best-prod min-price
       if (best-score - my-best-score) > score-tol [
-        ; don't buy at this guy
+        ; score of this guy's not good enough
         set my-supplier nobody
       ]
     ] [
