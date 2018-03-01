@@ -56,7 +56,7 @@ producers-own [
   cost                 ; what is the production cost per product?
   price                ; at what price does the producer decide to sell her product?
   n-products           ; how many products to produce each tick?
-  n-sale               ; how many products has producer sold last tick?
+  n-sale               ; how many products has producer sold this tick?
 ]
 
 consumers-own [
@@ -560,6 +560,8 @@ to produce
     set age 0
     create-ownership-from myself [hide-link]
   ]
+  ; reset the n-sale counter
+  set n-sale 0
 end
 
 ; consumer mtehod
@@ -592,33 +594,56 @@ to consume
     let prob consumer-demand i
     let buy? (random-float 1) < prob
     if buy? [
-;      let prods producers with [product-class-index = i]
-      ; don't evaluate producers, but their products:
+      ; consumer decided to buy
+      ; evaluate products:
       let prods filter-products (producers with [product-class-index = i])
       if count prods > 0 [
         ; if there is at least 1 product, try to buy, else do nothing
-        buy-best-of prods i
+        let prod-list pick-product prods i
+        let my-best-prod item 0 prod-list
+        let my-supplier item 1 prod-list
+
+        if my-best-prod != nobody [
+          ; now we know which product to buy, let's buy it!
+          let amount [price] of my-best-prod
+          ; only buy if you can pay for it
+          if amount < capital [
+            ; transfer the money
+            set capital capital - amount
+            ask my-supplier [
+              set capital capital + amount
+              set n-sale n-sale + 1
+            ]
+            ; transfer the ownership
+            ask [my-ownerships] of my-best-prod [die]
+            create-ownership-to my-best-prod [hide-link]
+          ]
+        ]
       ]
     ]
   ]
 end
 
 ; consumer method
+; return only the products of some-producers that meet my minimum standards
 to-report filter-products [some-producers]
+  let min-sustainability sust-min
+  let min-prestige prest-min
   report turtle-set [ownership-neighbors with [
-    sustainability >= [sust-min] of myself and
-    prestige >= [prest-min] of myself
-  ] of some-producers
+    sustainability >= min-sustainability and prestige >= min-prestige
+  ]] of some-producers
 end
 
 ; consumer method
-to buy-best-of [prods i]
+to-report pick-product [prods i]
+  ; the return variables
+  let my-supplier item i suppliers
+  let my-best-prod nobody
+
   let min-price min [price] of prods
   let best-prod find-best-prod prods min-price
   ; there may not be any product suiting my minimum needs
   if best-prod != nobody [
-    let my-supplier item i suppliers
-    let my-best-prod nobody
     if my-supplier != nobody [
       let supplier-list check-my-supplier my-supplier best-prod min-price
       set my-supplier item 0 supplier-list
@@ -630,16 +655,8 @@ to buy-best-of [prods i]
       set my-supplier one-of [ownership-neighbors] of best-prod
       set suppliers replace-item i suppliers my-supplier ; remember this producer for next tick
     ]
-
-    ; now we know which product to buy, let's buy it!
-    ; transfer the money
-    let amount [price] of my-best-prod
-    set capital capital - amount
-    ask my-supplier [ set capital capital + amount ]
-    ; transfer the ownership
-    ask [my-ownerships] of my-best-prod [die]
-    create-ownership-to my-best-prod [hide-link]
   ]
+  report (list my-best-prod my-supplier)
 end
 
 ; consumer method
