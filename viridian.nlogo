@@ -407,8 +407,8 @@ to setup-producers
 end
 
 to setup-producer
-  setxy random-xcor random-ycor
   hide-turtle
+;  setxy random-xcor random-ycor
 
   ; select a random product class, with probability corresponding to demand (the product-class never changes across lifetime of producer)
   ; first calculate cumulative probabilities from the demands
@@ -587,6 +587,15 @@ end
 to consume
   set capital capital + income ; pay monthly income to enable more consumption
   ; now go and buy stuff
+  ; special case for food and textiles: if you really need it, because you own nothing, only consider products you can buy
+  ; if you need both, divide capital in two parts, weighted with median food/clothes price
+;  let need-food? (consumer-demand 0) = 1
+;  let need-clothes? (consumer-demand 1) = 1
+  let need-food? (count ownership-neighbors with [product-class = "food"]) = 0
+  let need-clothes? (count ownership-neighbors with [product-class = "textiles"]) = 0
+  let budgets find-budgets need-food? need-clothes?
+  let food-budget item 0 budgets
+  let clothes-budget item 1 budgets
   ; decide if to go shopping for each product class
   foreach range length product-classes [ i ->
     ; interpret demand (number between 0 and 1) to be a probability that the consumer buys products from this product class this tick
@@ -595,8 +604,16 @@ to consume
     let buy? (random-float 1) < prob
     if buy? [
       ; consumer decided to buy
+      let max-price -1
+      if i = 0 and need-food? [ set max-price food-budget ]
+      if i = 1 and need-clothes? [ set max-price clothes-budget ]
       ; evaluate products:
-      let prods filter-products (producers with [product-class-index = i])
+      let my-producers producers with [product-class-index = i]
+      let prods filter-products my-producers max-price
+      if count prods = 0 and ((i = 0 and need-food?) or (i = 1 and need-clothes?)) [
+        ; try again, without minimum requirements to sustainability and prestige, because you NEED food/clothes
+        set prods turtle-set [ownership-neighbors with [price < max-price]] of my-producers
+      ]
       if count prods > 0 [
         ; if there is at least 1 product, try to buy, else do nothing
         let prod-list pick-product prods i
@@ -626,12 +643,39 @@ end
 
 ; consumer method
 ; return only the products of some-producers that meet my minimum standards
-to-report filter-products [some-producers]
+to-report filter-products [some-producers max-price]
   let min-sustainability sust-min
   let min-prestige prest-min
+  if max-price > 0 [
+    report turtle-set [ownership-neighbors with [
+      price < max-price and
+      sustainability >= min-sustainability and prestige >= min-prestige
+    ]] of some-producers
+  ]
   report turtle-set [ownership-neighbors with [
     sustainability >= min-sustainability and prestige >= min-prestige
   ]] of some-producers
+end
+
+; consumer method
+to-report find-budgets [need-food? need-clothes?]
+  let food-budget capital
+  let clothes-budget capital
+  if need-food? and need-clothes? [
+    let food-prices [price] of filter-products (producers with [product-class-index = 0]) -1
+    let clothes-prices [price] of filter-products (producers with [product-class-index = 1]) -1
+    let med-food-price 1.
+    let med-clothes-price 1.
+    if length food-prices > 0 [
+      set med-food-price median food-prices
+    ]
+    if length clothes-prices > 0 [
+      set med-clothes-price median clothes-prices
+    ]
+    set food-budget capital * med-food-price / (med-food-price + med-clothes-price)
+    set clothes-budget capital * med-clothes-price / (med-food-price + med-clothes-price)
+  ]
+  report (list food-budget clothes-budget)
 end
 
 ; consumer method
@@ -663,7 +707,7 @@ end
 to-report check-my-supplier [my-supplier best-prod min-price]
   ; check if supplier still matches the needs
   let best-score evaluate-prod best-prod min-price
-  let my-prods filter-products my-supplier
+  let my-prods filter-products my-supplier -1
   let my-best-prod nobody
   ifelse count my-prods < 1 [
     ; nothing in stock, must buy somewhere else
